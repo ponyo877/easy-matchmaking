@@ -3,21 +3,23 @@ package entity
 import (
 	"fmt"
 	"sync"
+
+	"golang.org/x/exp/maps"
 )
 
 type Session[T comparable] struct {
-	queue []T
+	queue map[T]bool
 	sync.Mutex
 }
 
 func NewSession[T comparable]() *Session[T] {
-	return &Session[T]{queue: make([]T, 0)}
+	return &Session[T]{queue: make(map[T]bool)}
 }
 
 func (s *Session[T]) Add(t T) {
 	s.Lock()
 	defer s.Unlock()
-	s.queue = append(s.queue, t)
+	s.queue[t] = true
 }
 
 func (s *Session[T]) Dequeue() (T, error) {
@@ -27,9 +29,16 @@ func (s *Session[T]) Dequeue() (T, error) {
 		var zeroT T
 		return zeroT, fmt.Errorf("queue is empty")
 	}
-	top := s.queue[0]
-	s.queue = s.queue[1:]
+	keys := maps.Keys(s.queue)
+	top := keys[0]
+	delete(s.queue, top)
 	return top, nil
+}
+
+func (s *Session[T]) Remove(t T) {
+	s.Lock()
+	defer s.Unlock()
+	delete(s.queue, t)
 }
 
 func (s *Session[T]) CanMatch() bool {

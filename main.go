@@ -1,11 +1,14 @@
 package main
 
 import (
+	"bytes"
 	"crypto/sha256"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/ponyo877/easy-matchmaking/entity"
@@ -64,6 +67,9 @@ func matchMaking() {
 
 func websocketConnection(session *entity.Session[*entity.User]) func(ws *websocket.Conn) {
 	return func(ws *websocket.Conn) {
+		endpoint := os.Getenv("SLACK_WEBHOOK_ENDPOINT")
+		notify(endpoint)
+
 		go readMessage(ws, session)
 		writeMessage()
 	}
@@ -75,12 +81,10 @@ func readMessage(ws *websocket.Conn, session *entity.Session[*entity.User]) {
 		var req ReqMsg
 		if err := websocket.JSON.Receive(ws, &req); err != nil {
 			log.Printf("Receive failed: %s; closing connection...", err.Error())
-			if mine.ID() != "" {
-				sendMatchBreakMsg(match[mine.ID()].Conn())
-			}
 			if err = ws.Close(); err != nil {
 				log.Println("Error closing connection:", err.Error())
 			}
+			session.Remove(mine)
 			break
 		}
 		mine = entity.NewUser(ws, req.UserID, req.CreatedAt)
@@ -98,18 +102,38 @@ func writeMessage() {
 	}
 }
 
-func sendMatchBreakMsg(conn *websocket.Conn) {
-	if err := websocket.JSON.Send(conn, NewCloseMsg()); err != nil {
-		log.Println("Error sending message to client:", err.Error())
-	}
-}
-
 func shortHash(now time.Time) (string, error) {
 	h := sha256.New()
 	if _, err := h.Write([]byte(now.String())); err != nil {
 		return "", err
 	}
 	return fmt.Sprintf("%x", h.Sum(nil))[:7], nil
+}
+
+func notify(webhookEndpoint string) error {
+	message := struct {
+		Text string `json:"text"`
+	}{
+		Text: "チャットにエントリーされました",
+	}
+	jsonStr, _ := json.Marshal(message)
+	req, err := http.NewRequest(
+		http.MethodPost,
+		webhookEndpoint,
+		bytes.NewBuffer([]byte(jsonStr)),
+	)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	return nil
 }
 
 func main() {
