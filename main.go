@@ -139,7 +139,7 @@ func notify(webhookEndpoint string) error {
 func main() {
 	flag.Parse()
 	go matchMaking()
-	http.HandleFunc("/", func(w http.ResponseWriter, req *http.Request) {
+	http.HandleFunc("/matchmaking", func(w http.ResponseWriter, req *http.Request) {
 		websocket.Server{Handler: websocket.Handler(websocketConnection(session))}.ServeHTTP(w, req)
 	})
 	log.Printf("Server listening on port %d", *port)
