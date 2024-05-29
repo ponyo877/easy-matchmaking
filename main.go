@@ -1,9 +1,6 @@
 package main
 
 import (
-	"bytes"
-	"crypto/sha256"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
@@ -12,6 +9,7 @@ import (
 	"time"
 
 	"github.com/ponyo877/easy-matchmaking/entity"
+	"github.com/ponyo877/easy-matchmaking/notify"
 	"golang.org/x/net/websocket"
 )
 
@@ -51,7 +49,7 @@ func matchMaking() {
 	for {
 		if session.CanMatch() {
 			now := time.Now()
-			roomID, _ := shortHash(now)
+			roomID := entity.NewHash(now).String()
 			p1, _ := session.Dequeue()
 			p2, _ := session.Dequeue()
 			match[p1.ID()], match[p2.ID()] = p2, p1
@@ -68,7 +66,8 @@ func matchMaking() {
 func websocketConnection(session *entity.Session[*entity.User]) func(ws *websocket.Conn) {
 	return func(ws *websocket.Conn) {
 		endpoint := os.Getenv("SLACK_WEBHOOK_ENDPOINT")
-		notify(endpoint)
+		slack := notify.NewSlack(endpoint)
+		_ = slack.Notify("<!here> Entry!")
 
 		go readMessage(ws, session)
 		writeMessage()
@@ -100,40 +99,6 @@ func writeMessage() {
 			log.Println("Error sending message to client:", err.Error())
 		}
 	}
-}
-
-func shortHash(now time.Time) (string, error) {
-	h := sha256.New()
-	if _, err := h.Write([]byte(now.String())); err != nil {
-		return "", err
-	}
-	return fmt.Sprintf("%x", h.Sum(nil))[:7], nil
-}
-
-func notify(webhookEndpoint string) error {
-	message := struct {
-		Text string `json:"text"`
-	}{
-		Text: "チャットにエントリーされました",
-	}
-	jsonStr, _ := json.Marshal(message)
-	req, err := http.NewRequest(
-		http.MethodPost,
-		webhookEndpoint,
-		bytes.NewBuffer([]byte(jsonStr)),
-	)
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	return nil
 }
 
 func main() {
