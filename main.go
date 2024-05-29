@@ -25,10 +25,6 @@ type ReqMsg struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
-type CloseMsg struct {
-	Type string `json:"type"`
-}
-
 type ResMsg struct {
 	conn      *websocket.Conn
 	Type      string    `json:"type"`
@@ -39,10 +35,6 @@ type ResMsg struct {
 
 func NewResMsg(conn *websocket.Conn, roomID, userID string, createdAt time.Time) *ResMsg {
 	return &ResMsg{conn, "MATCH", roomID, userID, createdAt}
-}
-
-func NewCloseMsg() *CloseMsg {
-	return &CloseMsg{"CLOSE"}
 }
 
 func matchMaking() {
