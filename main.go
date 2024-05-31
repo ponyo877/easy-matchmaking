@@ -37,7 +37,7 @@ func NewResMsg(conn *websocket.Conn, roomID, userID string, createdAt time.Time)
 	return &ResMsg{conn, "MATCH", roomID, userID, createdAt}
 }
 
-func matchMaking() {
+func matchmaking() {
 	for {
 		if session.CanMatch() {
 			now := time.Now()
@@ -95,7 +95,7 @@ func writeMessage() {
 
 func main() {
 	flag.Parse()
-	go matchMaking()
+	go matchmaking()
 	http.HandleFunc("/matchmaking", func(w http.ResponseWriter, req *http.Request) {
 		websocket.Server{Handler: websocket.Handler(websocketConnection(session))}.ServeHTTP(w, req)
 	})
