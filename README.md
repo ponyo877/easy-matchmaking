@@ -23,7 +23,7 @@ Connected (press CTRL+C to quit)
 < {"type":"MATCH","room_id":"68be89f","user_id":"test-user2","created_at":"2024-05-29T20:43:03.897592+09:00"}
 ```
 
-# Enviroment Value
+# Environment Variable
 | KEY | Description |
 | --- | --- |
 |SLACK_WEBHOOK_ENDPOINT| If you specify a Slack webhook endpoint, a message will be delivered when a user enters.|
