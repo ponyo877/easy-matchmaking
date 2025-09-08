@@ -14,10 +14,8 @@ import (
 )
 
 var (
-	port      = flag.Int("port", 8000, "The server port")
-	session   = entity.NewSession[*entity.User]()
-	match     = make(map[string]*entity.User)
-	broadcast = make(chan *ResMsg)
+	port    = flag.Int("port", 8000, "The server port")
+	session = entity.NewSession[*entity.User]()
 )
 
 type ReqMsg struct {
@@ -26,15 +24,14 @@ type ReqMsg struct {
 }
 
 type ResMsg struct {
-	conn      *websocket.Conn
 	Type      string    `json:"type"`
 	RoomID    string    `json:"room_id"`
 	UserID    string    `json:"user_id"`
 	CreatedAt time.Time `json:"created_at"`
 }
 
-func NewResMsg(conn *websocket.Conn, roomID, userID string, createdAt time.Time) *ResMsg {
-	return &ResMsg{conn, "MATCH", roomID, userID, createdAt}
+func NewResMsg(roomID, userID string, createdAt time.Time) *ResMsg {
+	return &ResMsg{"MATCH", roomID, userID, createdAt}
 }
 
 func matchmaking() {
@@ -44,10 +41,9 @@ func matchmaking() {
 			roomID := entity.NewHash(now).String()
 			p1, _ := session.Dequeue()
 			p2, _ := session.Dequeue()
-			match[p1.ID()], match[p2.ID()] = p2, p1
 
-			broadcast <- NewResMsg(p1.Conn(), roomID, p2.ID(), now)
-			broadcast <- NewResMsg(p2.Conn(), roomID, p1.ID(), now)
+			writeMessage(p1.Conn(), NewResMsg(roomID, p2.ID(), now))
+			writeMessage(p2.Conn(), NewResMsg(roomID, p1.ID(), now))
 			log.Printf("Matched!: %s vs %s", p1.ID(), p2.ID())
 			continue
 		}
@@ -57,13 +53,15 @@ func matchmaking() {
 
 func websocketConnection(session *entity.Session[*entity.User]) func(ws *websocket.Conn) {
 	return func(ws *websocket.Conn) {
-		endpoint := os.Getenv("SLACK_WEBHOOK_ENDPOINT")
-		slack := notify.NewSlack(endpoint)
-		_ = slack.Notify("<!here> Entry!")
-
-		go readMessage(ws, session)
-		writeMessage()
+		notifySlack()
+		readMessage(ws, session)
 	}
+}
+
+func notifySlack() {
+	endpoint := os.Getenv("SLACK_WEBHOOK_ENDPOINT")
+	slack := notify.NewSlack(endpoint)
+	_ = slack.Notify("<!here> Server started!")
 }
 
 func readMessage(ws *websocket.Conn, session *entity.Session[*entity.User]) {
@@ -84,12 +82,9 @@ func readMessage(ws *websocket.Conn, session *entity.Session[*entity.User]) {
 	}
 }
 
-func writeMessage() {
-	for {
-		res := <-broadcast
-		if err := websocket.JSON.Send(res.conn, res); err != nil {
-			log.Println("Error sending message to client:", err.Error())
-		}
+func writeMessage(ws *websocket.Conn, res *ResMsg) {
+	if err := websocket.JSON.Send(ws, res); err != nil {
+		log.Println("Error sending message to client:", err.Error())
 	}
 }
 
